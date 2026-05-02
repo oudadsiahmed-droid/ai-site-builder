@@ -487,8 +487,6 @@ textarea{resize:vertical;min-height:100px;}
 
     <!-- SEO RESULTS -->
     <div id="seoResults" style="display:none;">
-
-      <!-- SCORE -->
       <div class="section">
         <div class="section-body" style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
           <div style="text-align:center;">
@@ -528,7 +526,6 @@ textarea{resize:vertical;min-height:100px;}
         </div>
       </div>
 
-      <!-- CHECKS -->
       <div class="section">
         <div class="section-head">
           <div class="section-title">🔍 SEO Checks</div>
@@ -536,7 +533,6 @@ textarea{resize:vertical;min-height:100px;}
         <div class="section-body" id="seoChecks"></div>
       </div>
 
-      <!-- META PREVIEW -->
       <div class="section">
         <div class="section-head">
           <div class="section-title">👁️ Google Preview</div>
@@ -550,7 +546,6 @@ textarea{resize:vertical;min-height:100px;}
         </div>
       </div>
 
-      <!-- META TAGS GENERATED -->
       <div class="section">
         <div class="section-head">
           <div class="section-title">🏷️ Generated Meta Tags</div>
@@ -560,12 +555,10 @@ textarea{resize:vertical;min-height:100px;}
           <textarea id="metaTagsOutput" style="min-height:160px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--g);" readonly></textarea>
         </div>
       </div>
-
     </div>
   </div>
 
   <!-- SETTINGS -->
-
   <div class="page-content" id="page-settings">
     <div class="section">
       <div class="section-head">
@@ -682,7 +675,6 @@ function init() {
   renderSites();
   renderProducts();
   updateSeoSelect();
-  // Auto-detect API endpoint always
   state.apiEndpoint = window.location.origin + '/api/generate';
   localStorage.setItem('apiEndpoint', state.apiEndpoint);
   document.getElementById('apiEndpoint').value = state.apiEndpoint;
@@ -718,7 +710,7 @@ function togglePage(el, page) {
   }
 }
 
-// GENERATE SITE
+// ✅ BUG FIX: generateSite corrigée - suppression du }, 500) orphelin
 async function generateSite() {
   const name = document.getElementById('siteName').value.trim();
   const desc = document.getElementById('siteDesc').value.trim();
@@ -762,7 +754,6 @@ ${state.selectedType === 'restaurant' ? '- Menu sections\n- Reservation form\n- 
 
 Return ONLY the complete HTML code, nothing else.`;
 
-  // Show loading
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('show');
   const steps = ['step1','step2','step3','step4','step5'];
@@ -791,10 +782,8 @@ Return ONLY the complete HTML code, nothing else.`;
 
     if(data.result) {
       let html = data.result;
-      // Clean up markdown if present
       html = html.replace(/```html\n?/g,'').replace(/```\n?/g,'').trim();
 
-      // Save site
       const site = {
         id: Date.now(),
         name,
@@ -813,8 +802,11 @@ Return ONLY the complete HTML code, nothing else.`;
       updateStats();
       renderSites();
       updateSeoSelect();
-        previewSite(site);
-      }, 500);
+
+      // ✅ BUG FIX: suppression du }, 500) qui causait le SyntaxError
+      overlay.classList.remove('show');
+      previewSite(site);
+
     } else {
       throw new Error(data.error || 'Generation failed');
     }
@@ -1006,89 +998,72 @@ function runSeoAnalysis() {
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-
   const checks = [];
 
-  // 1. Title
   const title = doc.querySelector('title')?.textContent || '';
   if(!title) checks.push({label:'Title tag', status:'fail', msg:'No <title> tag found', fix:'Add <title>Your Page Title</title>'});
   else if(title.length < 30) checks.push({label:'Title length', status:'warn', msg:`Title too short (${title.length} chars)`, fix:'Title should be 50-60 characters'});
   else if(title.length > 60) checks.push({label:'Title length', status:'warn', msg:`Title too long (${title.length} chars)`, fix:'Title should be 50-60 characters'});
   else checks.push({label:'Title tag', status:'good', msg:`Title: "${title.slice(0,50)}"`, fix:''});
 
-  // 2. Meta description
   const desc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
   if(!desc) checks.push({label:'Meta Description', status:'fail', msg:'No meta description found', fix:'Add <meta name="description" content="...">'});
   else if(desc.length < 120) checks.push({label:'Meta Description', status:'warn', msg:`Too short (${desc.length} chars)`, fix:'Should be 150-160 characters'});
   else if(desc.length > 160) checks.push({label:'Meta Description', status:'warn', msg:`Too long (${desc.length} chars)`, fix:'Should be 150-160 characters'});
   else checks.push({label:'Meta Description', status:'good', msg:`${desc.length} characters ✓`, fix:''});
 
-  // 3. H1
   const h1s = doc.querySelectorAll('h1');
   if(!h1s.length) checks.push({label:'H1 Tag', status:'fail', msg:'No H1 tag found', fix:'Add one <h1> tag with main keyword'});
   else if(h1s.length > 1) checks.push({label:'H1 Tag', status:'warn', msg:`Multiple H1 tags (${h1s.length})`, fix:'Use only one H1 per page'});
   else checks.push({label:'H1 Tag', status:'good', msg:`H1: "${h1s[0].textContent.slice(0,40)}"`, fix:''});
 
-  // 4. H2s
   const h2s = doc.querySelectorAll('h2');
   if(!h2s.length) checks.push({label:'H2 Tags', status:'warn', msg:'No H2 tags found', fix:'Add H2 tags for section titles'});
   else checks.push({label:'H2 Tags', status:'good', msg:`${h2s.length} H2 tags found ✓`, fix:''});
 
-  // 5. Images alt
   const imgs = doc.querySelectorAll('img');
   const imgsNoAlt = [...imgs].filter(i => !i.getAttribute('alt'));
   if(imgsNoAlt.length > 0) checks.push({label:'Image Alt Tags', status:'warn', msg:`${imgsNoAlt.length}/${imgs.length} images missing alt`, fix:'Add alt="description" to all images'});
   else if(imgs.length === 0) checks.push({label:'Images', status:'warn', msg:'No images found', fix:'Add relevant images with alt tags'});
   else checks.push({label:'Image Alt Tags', status:'good', msg:`All ${imgs.length} images have alt tags ✓`, fix:''});
 
-  // 6. Canonical
   const canonical = doc.querySelector('link[rel="canonical"]');
   if(!canonical) checks.push({label:'Canonical URL', status:'warn', msg:'No canonical tag', fix:'Add <link rel="canonical" href="...">'});
   else checks.push({label:'Canonical URL', status:'good', msg:'Canonical tag present ✓', fix:''});
 
-  // 7. OG tags
   const ogTitle = doc.querySelector('meta[property="og:title"]');
   const ogDesc = doc.querySelector('meta[property="og:description"]');
   if(!ogTitle || !ogDesc) checks.push({label:'Open Graph Tags', status:'warn', msg:'Missing OG tags (social sharing)', fix:'Add og:title, og:description, og:image'});
   else checks.push({label:'Open Graph Tags', status:'good', msg:'OG tags present ✓', fix:''});
 
-  // 8. Viewport
   const viewport = doc.querySelector('meta[name="viewport"]');
   if(!viewport) checks.push({label:'Mobile Viewport', status:'fail', msg:'No viewport meta tag', fix:'Add <meta name="viewport" content="width=device-width, initial-scale=1">'});
   else checks.push({label:'Mobile Viewport', status:'good', msg:'Mobile viewport set ✓', fix:''});
 
-  // 9. Links
   const links = doc.querySelectorAll('a');
-  const extLinks = [...links].filter(l => l.href.startsWith('http'));
   if(links.length === 0) checks.push({label:'Internal Links', status:'warn', msg:'No links found', fix:'Add internal navigation links'});
   else checks.push({label:'Internal Links', status:'good', msg:`${links.length} links found ✓`, fix:''});
 
-  // 10. Content length
   const bodyText = doc.body?.innerText || doc.body?.textContent || '';
   const wordCount = bodyText.split(/\s+/).filter(w=>w.length>2).length;
   if(wordCount < 300) checks.push({label:'Content Length', status:'warn', msg:`Only ~${wordCount} words`, fix:'Add more content (min 300 words recommended)'});
   else checks.push({label:'Content Length', status:'good', msg:`~${wordCount} words ✓`, fix:''});
 
-  // 11. Schema markup
   const schema = doc.querySelector('script[type="application/ld+json"]');
   if(!schema) checks.push({label:'Schema Markup', status:'warn', msg:'No structured data found', fix:'Add JSON-LD schema markup'});
   else checks.push({label:'Schema Markup', status:'good', msg:'Structured data present ✓', fix:''});
 
-  // 12. Lang attribute
   const htmlLang = doc.querySelector('html')?.getAttribute('lang');
   if(!htmlLang) checks.push({label:'HTML Lang', status:'warn', msg:'No lang attribute on <html>', fix:'Add lang="fr" or lang="ar" to <html>'});
   else checks.push({label:'HTML Lang', status:'good', msg:`lang="${htmlLang}" ✓`, fix:''});
 
-  // CALCULATE SCORE
   const good = checks.filter(c=>c.status==='good').length;
   const warn = checks.filter(c=>c.status==='warn').length;
   const fail = checks.filter(c=>c.status==='fail').length;
   const score = Math.round((good * 10 + warn * 5) / (checks.length * 10) * 100);
 
-  // RENDER
   document.getElementById('seoResults').style.display = 'block';
 
-  // Score circle
   const circumference = 314;
   const offset = circumference - (score / 100) * circumference;
   const circle = document.getElementById('scoreCircle');
@@ -1101,7 +1076,6 @@ function runSeoAnalysis() {
   document.getElementById('sbWarn').textContent = warn;
   document.getElementById('sbFail').textContent = fail;
 
-  // Checks list
   document.getElementById('seoChecks').innerHTML = checks.map(c => `
     <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
       <span style="font-size:18px;flex-shrink:0;">${c.status==='good'?'✅':c.status==='warn'?'⚠️':'❌'}</span>
@@ -1113,11 +1087,9 @@ function runSeoAnalysis() {
     </div>
   `).join('');
 
-  // Google preview
   document.getElementById('googleTitle').textContent = title || 'No title found';
   document.getElementById('googleDesc').textContent = desc || 'No meta description found';
 
-  // Generate meta tags
   const siteName = title || 'My Website';
   const metaTags = `<!-- SEO Meta Tags Generated by AI Site Builder -->
 <title>${title || siteName}</title>
@@ -1143,8 +1115,6 @@ function runSeoAnalysis() {
 <\/script>`;
 
   document.getElementById('metaTagsOutput').value = metaTags;
-
-  // Scroll to results
   document.getElementById('seoResults').scrollIntoView({behavior:'smooth'});
   showToast(`📊 SEO Score: ${score}/100`, score >= 70 ? 'success' : 'error');
 }
@@ -1155,10 +1125,8 @@ function copyMetaTags() {
   showToast('📋 Copied!', 'success');
 }
 
-// UPDATE SEO SELECT WHEN SITES CHANGE
-const origRenderSites = window.renderSites;
-
-
+// ✅ BUG FIX: getTypeEmoji était orpheline, maintenant bien placée
+function getTypeEmoji(type) {
   return {affiliate:'🛒',blog:'📰',hotel:'🏨',restaurant:'🍕',sport:'💪',business:'🏢',portfolio:'💼',medical:'🏥'}[type]||'🌐';
 }
 
